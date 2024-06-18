@@ -1,2 +1,2 @@
 # Team-2_VoiceAI
-Mitigating bias
+Mitigating bias: gender and age
