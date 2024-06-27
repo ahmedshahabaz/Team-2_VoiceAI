@@ -1,4 +1,1 @@
-# Team-2_VoiceAI
-Mitigating bias: gender and age
-
-Fahim's Branch
+# Bridge2AI (b2ai) project USF cohort Team 2
