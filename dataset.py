@@ -65,7 +65,7 @@ class MyAudioDataset(torch.utils.data.Dataset):
         
         gender_data = pd.concat([gender_df, new_row_df], ignore_index=True).to_numpy()
 
-        daignosis_data = participant_df[['record_id', self.diagnosis_column]].to_numpy()
+        diagnosis_data = participant_df[['record_id', self.diagnosis_column]].to_numpy()
         
         age_dict = {}
         binned_age_dict = {}
@@ -82,16 +82,16 @@ class MyAudioDataset(torch.utils.data.Dataset):
         for person_id, site in site_data:
             site_dict[str(person_id)] = self.site_mapping.get(str(site), -1)  # Default to -1 if not found
 
-        daignosis_dict = {}
-        for person_id, daignosis in daignosis_data:
-            daignosis_dict[str(person_id)] = float(daignosis)
+        diagnosis_dict = {}
+        for person_id, dgnsis in diagnosis_data:
+            diagnosis_dict[str(person_id)] = float(dgnsis)
         
         self.feature_files = []
         self.age = []
         self.binned_age = []
         self.gender = []
         self.site = []
-        self.daignosis = []
+        self.diagnosis = []
         
         for person_id, session_id in person_session_pairs:
             if person_id not in identities:
@@ -103,9 +103,9 @@ class MyAudioDataset(torch.utils.data.Dataset):
             self.binned_age += [binned_age_dict[person_id]]*len(audio_features)
             self.gender += [gender_dict[person_id]]*len(audio_features)
             self.site += [site_dict[person_id]]*len(audio_features)
-            self.daignosis += [daignosis_dict[person_id]]*len(audio_features)
+            self.diagnosis += [diagnosis_dict[person_id]]*len(audio_features)
         
-        assert len(self.feature_files) == len(self.age) == len(self.gender) == len(self.site) == len(self.daignosis)
+        assert len(self.feature_files) == len(self.age) == len(self.gender) == len(self.site) == len(self.diagnosis)
         
     def __len__(self):
         return len(self.feature_files)
@@ -123,26 +123,26 @@ class MyAudioDataset(torch.utils.data.Dataset):
         gender = self.gender[idx]
         site = self.site[idx]
         binned_age = self.binned_age[idx]
-        daignosis = self.daignosis[idx]
+        diagnosis = self.diagnosis[idx]
         
-        return opensmile_feature, age, gender, site, binned_age , daignosis
+        return opensmile_feature, age, gender, site, binned_age , diagnosis
 
 
 ### prepares data for visualization and non-dl algorithms
 
-def create_open_smile_df(audio_dataset, include_GAS = True):
+def create_open_smile_df(audio_dataset, include_GAS = True, diagnosis_column = 'voc_fold_paralysis'):
     # Extract opensmile features, age, gender, and site
     opensmile_features = []
     ages = []
     genders = []
     sites = []
-    vocal_fold_paralysis = []
     GENDERS_org = []
     SITES_org = []
     AGE_binned = []
-    
+    diagnosis = []
+
     for i in range(len(audio_dataset)):
-        opensmile_feature, age, gender, site, binned_age, vfp = audio_dataset[i]
+        opensmile_feature, age, gender, site, binned_age, diagnosis_label = audio_dataset[i]
         opensmile_features.append(opensmile_feature.squeeze())
         ages.append(age)
         genders.append(gender)
@@ -150,7 +150,7 @@ def create_open_smile_df(audio_dataset, include_GAS = True):
         GENDERS_org.append(audio_dataset.map_gender_back(gender))
         SITES_org.append(audio_dataset.map_site_back(site))
         AGE_binned.append(binned_age)
-        vocal_fold_paralysis.append(vfp)
+        diagnosis.append(diagnosis_label)
     
     # Convert to DataFrame
     opensmile_df = pd.DataFrame(opensmile_features)
@@ -160,7 +160,7 @@ def create_open_smile_df(audio_dataset, include_GAS = True):
     opensmile_df['GENDER_org'] = GENDERS_org
     opensmile_df['SITE_org'] = SITES_org
     opensmile_df['AGE_bin'] = AGE_binned
-    opensmile_df['vocal_fold_paralysis'] = vocal_fold_paralysis
+    opensmile_df[diagnosis_column] = diagnosis
     
     
     # Standardize the opensmile features
