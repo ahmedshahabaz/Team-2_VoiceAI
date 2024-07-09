@@ -14,3 +14,4 @@ These links provide further understanding of some of the fairness metrics:
 1. [Google Machine Learning Glossary: Fairness](https://developers.google.com/machine-learning/glossary/fairness#s)
 2. [RSNA AI Blog - Understanding Fairness in AI](https://pubs.rsna.org/page/ai/blog/2023/08/ryai_editorsblog082523)
 3. [GitHub Repository: Equalized Odds and Calibration](https://github.com/gpleiss/equalized_odds_and_calibration)
+4. [A Visual Introduction to Measuring and Mitigating Bias in Machine Learning](https://mlu-explain.github.io/equality-of-odds/)
