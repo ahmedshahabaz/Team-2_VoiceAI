@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 #from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from fairness import tools, balancers
 
 def chi_DIR_plot(dataset, _opensmile_df_, ground_truth, _predictions_, attribute='gender', calc_chi_square=True):
     
@@ -78,5 +79,29 @@ def chi_DIR_plot(dataset, _opensmile_df_, ground_truth, _predictions_, attribute
 
     return chi_square_result, disparate_impact_ratios, _print_string_
 
-#def plot_fairness_metrics():
 
+# Scott Lee, “scotthlee/fairness: First release!”. Zenodo, Jun. 01, 2021. doi: 10.5281/zenodo.4890946.
+# https://github.com/scotthlee/fairness/tree/master?tab=readme-ov-file
+
+# https://developers.google.com/machine-learning/glossary/fairness#s
+# https://pubs.rsna.org/page/ai/blog/2023/08/ryai_editorsblog082523
+
+# https://github.com/gpleiss/equalized_odds_and_calibration
+
+def equalized_metrics(_opensmile_df_, y_gt, y_pred, attribute='gender'):
+
+    print("---" , attribute.upper(), "---")
+    sensitive_attribute = _opensmile_df_[attribute]
+    pred_stats = tools.clf_metrics(y_gt, y_pred)
+    print(pred_stats)
+    
+    pb = balancers.BinaryBalancer(y=y_gt, y_=y_pred, a=sensitive_attribute, summary=False)
+    print("\nEqualized ODDs")
+    pb.adjust(goal='odds', summary=False)
+    pb.summary()
+    #pb.plot(xlim=(0, 0), ylim=(0, 0), lp_lines=False, roc_curves=False)
+
+    print("Equal Opportunity")
+    pb.adjust(goal='opportunity', summary=False)
+    pb.summary()
+    #pb.plot(xlim=(0, 0), ylim=(0, 0), lp_lines=False, roc_curves=False)
