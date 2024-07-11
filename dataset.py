@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-
+import random
+from sklearn.model_selection import train_test_split
 
 import torch
 import numpy as np
@@ -21,6 +22,72 @@ from b2aiprep.process import Audio, specgram
 
 warnings.filterwarnings("ignore", category=UserWarning, message="PySoundFile failed. Trying audioread instead.")
 warnings.filterwarnings("ignore", category=FutureWarning, message="librosa.core.audio.__audioread_load")
+
+
+def get_dataset(data_dir, target_diagnosis='voc_fold_paralysis', random_state=123):
+
+    dataset = VBAIDataset(data_dir)
+
+    participant_df = dataset.load_and_pivot_questionnaire('participant')
+    all_identities = sorted(participant_df['record_id'].to_numpy().tolist())
+    N = len(all_identities)
+    
+    '''
+    train_identities = set(all_identities[:int(0.8*N)])
+    val_identities = set(all_identities[int(0.8*N):int(0.9*N)])
+    test_identities = set(all_identities[int(0.9*N):])
+    '''
+
+    train_identities, DT_test_identities = train_test_split(all_identities, test_size=0.15, random_state=random_state)
+    val_identities, test_identities = train_test_split(DT_test_identities, test_size=0.5, random_state=random_state)
+
+    print('train ids:', len(train_identities))
+    print('val ids:', len(val_identities))
+    print('test ids:', len(test_identities))
+
+    target_diagnosis = 'voc_fold_paralysis' #airway_stenosis
+
+    qs = dataset.load_questionnaires('recordingschema')
+    q_dfs = []
+    for i, questionnaire in enumerate(qs):
+        df = dataset.questionnaire_to_dataframe(questionnaire)
+        df['dataframe_number'] = i
+        q_dfs.append(df)
+        i += 1
+    recordingschema_df = pd.concat(q_dfs)
+    recordingschema_df = pd.pivot(recordingschema_df, index='dataframe_number', columns='linkId', values='valueString')
+
+    person_session_pairs = recordingschema_df[['record_id', 'recording_session_id']].to_numpy().astype(str)
+    person_session_pairs = np.unique(person_session_pairs, axis=0).tolist()
+
+    print('Found {} person/session pairs'.format(len(person_session_pairs)))
+    print('--------------------------')
+
+    train_dataset = MyAudioDataset(train_identities, dataset, person_session_pairs)
+    val_dataset = MyAudioDataset(val_identities, dataset, person_session_pairs)
+    test_dataset = MyAudioDataset(test_identities, dataset, person_session_pairs)
+    DT_test_dataset = MyAudioDataset(DT_test_identities, dataset, person_session_pairs)
+
+    full_dataset = MyAudioDataset(all_identities, dataset, person_session_pairs)
+
+    print("Train data size : " , len(train_dataset))
+    print("Validation data size : ", len(val_dataset))
+    print("Test data size : ", len(test_dataset))
+    print("-----------------------")
+    print("Test set for Decision Tree Algo : ", len(DT_test_dataset))
+    print("Lenght of full dataset : " , len(full_dataset))
+
+    dataset_dict = {
+    "VBAIDataset" : (dataset),
+    "train_dataset": (train_dataset, train_identities),
+    "val_dataset": (val_dataset, val_identities),
+    "test_dataset": (test_dataset, test_identities),
+    "DT_test_dataset": (DT_test_dataset, DT_test_identities),
+    "full_dataset": (full_dataset, all_identities)
+    }
+
+    return dataset_dict
+
 
 
 class MyAudioDataset(torch.utils.data.Dataset):
@@ -118,14 +185,14 @@ class MyAudioDataset(torch.utils.data.Dataset):
         
     def __getitem__(self, idx):
         feature = torch.load(self.feature_files[idx])
-        opensmile_feature = feature['opensmile']
+        #opensmile_feature = feature['opensmile']
         age = self.age[idx]
         gender = self.gender[idx]
         site = self.site[idx]
         binned_age = self.binned_age[idx]
         diagnosis = self.diagnosis[idx]
         
-        return opensmile_feature, age, gender, site, binned_age , diagnosis
+        return feature, age, gender, site, binned_age , diagnosis
 
 
 ### prepares data for visualization and non-dl algorithms
@@ -142,7 +209,8 @@ def create_open_smile_df(audio_dataset, include_GAS = True, diagnosis_column = '
     diagnosis = []
 
     for i in range(len(audio_dataset)):
-        opensmile_feature, age, gender, site, binned_age, diagnosis_label = audio_dataset[i]
+        feature, age, gender, site, binned_age, diagnosis_label = audio_dataset[i]
+        opensmile_feature = feature['opensmile']
         opensmile_features.append(opensmile_feature.squeeze())
         ages.append(age)
         genders.append(gender)
