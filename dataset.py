@@ -91,10 +91,11 @@ def get_dataset(data_dir, target_diagnosis='voc_fold_paralysis', random_state=12
 
 
 class MyAudioDataset(torch.utils.data.Dataset):
-    def __init__(self, identities, dataset, person_session_pairs, diagnosis_column = 'voc_fold_paralysis', segment_size=3):
+    def __init__(self, identities, dataset, person_session_pairs, diagnosis_column = 'voc_fold_paralysis', algo ='DL' , segment_size=3):
         
         self.segment_size = segment_size
         self.diagnosis_column = diagnosis_column
+        self.algorithm = algo
         
         # Define gender mapping
         self.gender_mapping = {
@@ -185,19 +186,25 @@ class MyAudioDataset(torch.utils.data.Dataset):
         
     def __getitem__(self, idx):
         feature = torch.load(self.feature_files[idx])
-        #opensmile_feature = feature['opensmile']
+        opensmile_feature = feature['opensmile']
+        yamnet_embedding = feature['speaker_embedding']
         age = self.age[idx]
         gender = self.gender[idx]
         site = self.site[idx]
         binned_age = self.binned_age[idx]
         diagnosis = self.diagnosis[idx]
         
-        return feature, age, gender, site, binned_age , diagnosis
+        if self.algorithm.upper() == 'DL':
+            return yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
+
+        else:
+            return opensmile_feature, age, gender, site, binned_age , diagnosis
+
 
 
 ### prepares data for visualization and non-dl algorithms
 
-def create_open_smile_df(audio_dataset, include_GAS = True, diagnosis_column = 'voc_fold_paralysis'):
+def create_open_smile_df(audio_dataset, include_GAS = True, diagnosis_column = 'voc_fold_paralysis', algo = 'DT'):
     # Extract opensmile features, age, gender, and site
     opensmile_features = []
     ages = []
@@ -209,8 +216,7 @@ def create_open_smile_df(audio_dataset, include_GAS = True, diagnosis_column = '
     diagnosis = []
 
     for i in range(len(audio_dataset)):
-        feature, age, gender, site, binned_age, diagnosis_label = audio_dataset[i]
-        opensmile_feature = feature['opensmile']
+        opensmile_feature, _ , age, gender, site, binned_age, diagnosis_label = audio_dataset[i]
         opensmile_features.append(opensmile_feature.squeeze())
         ages.append(age)
         genders.append(gender)

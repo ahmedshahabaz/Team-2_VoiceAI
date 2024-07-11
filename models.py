@@ -10,7 +10,7 @@ import torch.nn.functional as F
 #------------------------------------------------
 
 
-def get_models(args, num_classes = 19):
+def get_models(args, num_classes = 1):
 
     # model_18 = resnet18(pretrained = False)
     # model_18.fc = nn.Linear(512*1*1, num_classes)

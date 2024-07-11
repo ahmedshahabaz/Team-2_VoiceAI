@@ -12,20 +12,29 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from fairness import tools, balancers
 
-
-
 def chi_DIR_plot(dataset, _opensmile_df_, ground_truth, _predictions_, attribute='gender', calc_chi_square=True):
     
-    print("---" , attribute.upper(), "---")
-    #_print_string_ = f'---{attribute.upper()}---\n'
-    _print_string_ = ''
+    #print("---" , attribute.upper(), "---")
+    
     sensitive_attribute = _opensmile_df_[attribute]
     if attribute == 'age':
         sensitive_attribute = _opensmile_df_['AGE_bin']
         
-    #accuracies = [_predictions_ == ground_truth]
-    accuracies = np.array(_predictions_) == np.array(ground_truth)
+    contingency_table = pd.crosstab(sensitive_attribute, _predictions_, rownames=[attribute], colnames=['Prediction'])
     
+    # Compare distributions
+    _print_string_ = f'---{attribute.upper()}---\n'
+    if calc_chi_square:
+        chi2_stat, p_value, dof, expected = chi2_contingency(contingency_table)
+        chi_square_result = {
+            "chi2_stat": chi2_stat,
+            "p_value": p_value,
+            "dof": dof,
+            "expected": expected
+        }
+        #print(f'Chi-Square Statistic: {chi2_stat}, p-value: {p_value}')
+        _print_string_ += f'Chi-Square Statistic: {chi2_stat}, p-value: {p_value}\n'
+
     unique_groups = sensitive_attribute.unique()
     favorable_outcome = {}
 
@@ -40,44 +49,16 @@ def chi_DIR_plot(dataset, _opensmile_df_, ground_truth, _predictions_, attribute
     elif attribute == 'age':
         map_func = age_map
         
-    
+    accuracies = [_predictions_ == ground_truth]
     for group in unique_groups:
         #group_predictions = _predictions_[sensitive_attribute == group]
-        group_predictions = accuracies[sensitive_attribute == group]
-        #group_truth = ground_truth[sensitive_attribute == group]
+        group_predictions = accuracies[0][sensitive_attribute == group]
+        group_truth = ground_truth[sensitive_attribute == group]
+        
         favorable_outcome[group] = np.mean(group_predictions)
         
     most_favorable_group = max(favorable_outcome, key=favorable_outcome.get)
     disparate_impact_ratios = {group: favorable_outcome[group] / favorable_outcome[most_favorable_group] for group in unique_groups}
-
-    accuracy_data = {
-        group: {
-            'correct': np.sum(accuracies[sensitive_attribute == group]),
-            'incorrect': np.sum(~accuracies[sensitive_attribute == group])
-        }
-        for group in unique_groups
-    }
-
-    contingency_table = pd.DataFrame(accuracy_data).T
-    contingency_table.index = [map_func(group) for group in contingency_table.index]
-
-    print(contingency_table)
-
-    if calc_chi_square:
-        chi2_stat, p_value, dof, expected = chi2_contingency(contingency_table)
-        chi_square_result = {
-            "chi2_stat": chi2_stat,
-            "p_value": p_value,
-            "dof": dof,
-            "expected": expected
-        }
-        #print(f'Chi-Square Statistic: {chi2_stat}, p-value: {p_value}')
-        _print_string_ += f'Chi-Square Statistic: {chi2_stat}, p-value: {p_value}\n'
-        
-        if p_value <= 0.05:
-            _print_string_ += 'Prediction accuracy is Dependent\n'
-        else:
-            _print_string_ += 'Prediction accuracy is Independent \n'
     
     #Print the disparate impact ratios
     for group, ratio in disparate_impact_ratios.items():
