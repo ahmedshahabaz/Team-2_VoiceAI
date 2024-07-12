@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from fairness import tools, balancers
 
 
-def chi_DIR_plot(audio_dataset, _opensmile_df_, ground_truth, _predictions_, attribute='gender', calc_chi_square=True):
+def chi_DIR_plot(audio_dataset, _opensmile_df_, ground_truth, _predictions_, attribute='gender', calc_chi_square=True, writer=None):
     
     print("---" , attribute.upper(), "---")
     _print_string_ = ''
@@ -103,6 +103,11 @@ def chi_DIR_plot(audio_dataset, _opensmile_df_, ground_truth, _predictions_, att
     plt.legend()
     plt.show()
 
+    if writer is not None:
+        contingency_table_markdown = contingency_table.to_markdown()
+        writer.add_text('Chi_DIR_Plot/Contingency_Table', f"```\n{contingency_table_markdown}\n```")
+        writer.add_text('Chi_DIR_Plot/Results', _print_string_)
+
     return chi_square_result, disparate_impact_ratios, _print_string_
 
 
@@ -114,7 +119,7 @@ def chi_DIR_plot(audio_dataset, _opensmile_df_, ground_truth, _predictions_, att
 
 # https://github.com/gpleiss/equalized_odds_and_calibration
 
-def equalized_metrics(_opensmile_df_, y_gt, y_pred, attribute='gender'):
+def equalized_metrics(_opensmile_df_, y_gt, y_pred, attribute='gender', writer = None):
 
     print("---" , attribute.upper(), "---")
     sensitive_attribute = _opensmile_df_[attribute]
@@ -126,6 +131,10 @@ def equalized_metrics(_opensmile_df_, y_gt, y_pred, attribute='gender'):
     pb.adjust(goal='odds', summary=False)
     pb.summary()
     #pb.plot(xlim=(0, 0), ylim=(0, 0), lp_lines=False, roc_curves=False)
+
+    if writer is not None:
+        writer.add_text('Equalized/pred_stats', pred_stats)
+        writer.add_text('Equalized/Odds_metrics', pb.summary())
 
     print("Equal Opportunity")
     pb.adjust(goal='opportunity', summary=False)

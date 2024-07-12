@@ -25,13 +25,13 @@ def get_parser():
 
     parser.add_argument('--learning_rate', type=float, default=0.001, help='base learning rate')
 
-    parser.add_argument('--num_epochs', type=int, default=100, help='maximum number of epochs')
+    parser.add_argument('--num_epochs', type=int, default=50, help='maximum number of epochs')
 
     #parser.add_argument('--dropout', type=float, default=0.5, help='dropout ratio')
 
     parser.add_argument('--patience', type=int, default=15,help='maximum number of epochs to allow before early stopping')
 
-    parser.add_argument('--comment', required=False, type=str, default = 'test_5_layers', help='name for TensorboardX')
+    parser.add_argument('--comment', required=False, type=str, default = 'test_', help='name for TensorboardX')
 
     args = parser.parse_args()
 

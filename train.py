@@ -262,9 +262,10 @@ def main(args):
     print(f"Test Accuracy : {test_acc:.4f} -- Test Loss: {test_ls:.4f}")
 
     opensmile_df_test,feature_cols,label_cols = create_open_smile_df(test_dataset_DT,diagnosis_column=args.label)
-    _, _, _print_string_ = chi_DIR_plot(test_dataset_DT,opensmile_df_test,ground_truths,model_preds)
+    _, _, _print_string_ = chi_DIR_plot(test_dataset_DT,opensmile_df_test,ground_truths,model_preds,attribute='gender',writer=writer)
     print(_print_string_)
-    equalized_metrics(opensmile_df_test,ground_truths,model_preds)  
+    equalized_metrics(opensmile_df_test,ground_truths,model_preds,attribute='gender',writer=writer)
+
 
     # Save training and validation logs
     np.save(os.path.join(directory, "train_logs.npy"), np.array(_train_))
@@ -272,6 +273,7 @@ def main(args):
 
     stacked_test_array = np.vstack((ground_truths, model_preds))
     np.save(os.path.join(directory, "test_gt_pred.npy"), stacked_test_array)
+    np.save(os.path.join(directory, "test_ids.npy"), np.array(test_identities))
 
     writer.close()
 

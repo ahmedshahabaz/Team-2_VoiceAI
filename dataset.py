@@ -23,6 +23,23 @@ from b2aiprep.process import Audio, specgram
 warnings.filterwarnings("ignore", category=UserWarning, message="PySoundFile failed. Trying audioread instead.")
 warnings.filterwarnings("ignore", category=FutureWarning, message="librosa.core.audio.__audioread_load")
 
+def get_person_session_pairs(vbai_dataset):
+
+    qs = vbai_dataset.load_questionnaires('recordingschema')
+    q_dfs = []
+    for i, questionnaire in enumerate(qs):
+        df = vbai_dataset.questionnaire_to_dataframe(questionnaire)
+        df['dataframe_number'] = i
+        q_dfs.append(df)
+        i += 1
+    recordingschema_df = pd.concat(q_dfs)
+    recordingschema_df = pd.pivot(recordingschema_df, index='dataframe_number', columns='linkId', values='valueString')
+
+    person_session_pairs = recordingschema_df[['record_id', 'recording_session_id']].to_numpy().astype(str)
+    person_session_pairs = np.unique(person_session_pairs, axis=0).tolist()
+
+    return person_session_pairs
+
 
 def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',random_state=123):
 
@@ -47,18 +64,7 @@ def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',random_
 
     #target_diagnosis = 'voc_fold_paralysis' #airway_stenosis
 
-    qs = dataset.load_questionnaires('recordingschema')
-    q_dfs = []
-    for i, questionnaire in enumerate(qs):
-        df = dataset.questionnaire_to_dataframe(questionnaire)
-        df['dataframe_number'] = i
-        q_dfs.append(df)
-        i += 1
-    recordingschema_df = pd.concat(q_dfs)
-    recordingschema_df = pd.pivot(recordingschema_df, index='dataframe_number', columns='linkId', values='valueString')
-
-    person_session_pairs = recordingschema_df[['record_id', 'recording_session_id']].to_numpy().astype(str)
-    person_session_pairs = np.unique(person_session_pairs, axis=0).tolist()
+    person_session_pairs = get_person_session_pairs(dataset)
 
     print('Found {} person/session pairs'.format(len(person_session_pairs)))
     print('--------------------------')
