@@ -8,8 +8,8 @@ import numpy as np
 import os, random, math
 
 from models import *
-
 from dataset import *
+from fairness_metrics import *
 from torch.optim.lr_scheduler import StepLR
 
 from torch.utils.tensorboard import SummaryWriter
@@ -21,7 +21,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # -------------------------------------------
 
-def train(model, epoch, mode, data_loader, device, loss_func, optimizer, scheduler, writer=None):
+def train_epoch(model, epoch, mode, data_loader, device, loss_func, optimizer, scheduler, writer=None):
 
     """
     Train or evaluate the model based on the mode.
@@ -44,7 +44,8 @@ def train(model, epoch, mode, data_loader, device, loss_func, optimizer, schedul
     total_elements = 1e-10
     total_loss = 0.0
 
-    model_preds = [[]]* len(data_loader)
+    model_preds = []
+    ground_truths = []
 
     with tqdm(data_loader, unit="batch") as iteration:
 
@@ -84,7 +85,9 @@ def train(model, epoch, mode, data_loader, device, loss_func, optimizer, schedul
             total_correct_preds += torch.sum(predictions==label_batch).item()
             
             # Aggregating the predictions from model for later comparison
-            model_preds[step] = predictions.tolist()
+            if mode.upper()=="TEST":
+                model_preds.extend(predictions.tolist())
+                ground_truths.extend(label_batch.tolist())
 
             iteration.set_postfix({"Acc":round(total_correct_preds/total_elements,2), "Lss":round(total_loss/total_elements,2)})
 
@@ -93,8 +96,11 @@ def train(model, epoch, mode, data_loader, device, loss_func, optimizer, schedul
                 writer.add_scalar(f'{mode}/Batch_Accuracy', batch_acc, epoch * len(data_loader) + step)
 
     #print('\rEpoch: {}, {} accuracy: {}, loss: {}'.format(epoch,mode, accuracy, loss)) 
+    if mode.upper()=="TEST":
+        model_preds = np.array(model_preds).flatten()
+        ground_truths = np.array(ground_truths).flatten()
 
-    return total_loss/total_elements, total_correct_preds/total_elements, model_preds
+    return total_loss/total_elements, total_correct_preds/total_elements, model_preds, ground_truths
 
 # -------------------------------------------
 
@@ -103,10 +109,10 @@ def main(args):
     writer = SummaryWriter('./runs/%s'%args.comment)
     writer.add_text('Args', " \n".join(['%s %s' % (arg, getattr(args, arg)) for arg in vars(args)]))
 
-    dataset_dict = get_dataset(data_dir = args.data_dir)
+    dataset_dict = get_dataset(data_dir=args.data_dir,target_diagnosis=args.label,algo='DL')
     train_dataset, train_identities = dataset_dict['train_dataset']
     val_dataset, val_identities = dataset_dict['val_dataset']
-    test_dataset, test_identities = dataset_dict['test_dataset']
+    test_dataset, test_identities, test_dataset_DT = dataset_dict['test_dataset']
     DT_test_dataset, DT_test_identities = dataset_dict['DT_test_dataset']
     full_dataset, all_identities = dataset_dict['full_dataset']
 
@@ -182,12 +188,12 @@ def main(args):
     for epoch in (range(args.num_epochs)):
 
         #model.train()
-        train_ls , train_acc, _ = train(model = model, epoch = epoch, mode = "Train", data_loader = train_loader, device = device,
+        train_ls,train_acc,_,_ = train_epoch(model = model, epoch = epoch, mode = "Train", data_loader = train_loader, device = device,
             loss_func = binary_crs_entropy_ls, optimizer = optimizer, scheduler = learning_rate_scheduler, writer = writer)
 
         model.eval()
         with torch.no_grad():
-            val_ls, val_acc, _ = train(model = model, epoch = epoch, mode = "Validation", data_loader = val_loader, device = device,
+            val_ls,val_acc,_,_ = train_epoch(model = model, epoch = epoch, mode = "Validation", data_loader = val_loader, device = device,
                 loss_func = binary_crs_entropy_ls, optimizer = optimizer, scheduler = learning_rate_scheduler, writer = writer)
 
 
@@ -248,18 +254,28 @@ def main(args):
 
     model.eval()
     with torch.no_grad():
-        test_ls , test_acc , _ = train(model = model, epoch = 0, mode = "Test", data_loader = test_loader, device = device,
+        test_ls,test_acc,model_preds,ground_truths = train_epoch(model = model, epoch = 0, mode = "Test", data_loader = test_loader, device = device,
             loss_func = binary_crs_entropy_ls, optimizer = None, scheduler = None, writer = writer)
 
         print()
 
     print(f"Test Accuracy : {test_acc:.4f} -- Test Loss: {test_ls:.4f}")
 
+    opensmile_df_test,feature_cols,label_cols = create_open_smile_df(test_dataset_DT,diagnosis_column=args.label)
+    _, _, _print_string_ = chi_DIR_plot(test_dataset_DT,opensmile_df_test,ground_truths,model_preds)
+    print(_print_string_)
+    equalized_metrics(opensmile_df_test,ground_truths,model_preds)  
+
     # Save training and validation logs
     np.save(os.path.join(directory, "train_logs.npy"), np.array(_train_))
     np.save(os.path.join(directory, "val_logs.npy"), np.array(_val_))
 
+    stacked_test_array = np.vstack((ground_truths, model_preds))
+    np.save(os.path.join(directory, "test_gt_pred.npy"), stacked_test_array)
+
     writer.close()
+
+
 
 if __name__ == '__main__':
     args = get_parser()

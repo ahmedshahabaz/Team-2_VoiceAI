@@ -24,7 +24,7 @@ warnings.filterwarnings("ignore", category=UserWarning, message="PySoundFile fai
 warnings.filterwarnings("ignore", category=FutureWarning, message="librosa.core.audio.__audioread_load")
 
 
-def get_dataset(data_dir, target_diagnosis='voc_fold_paralysis', random_state=123):
+def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',random_state=123):
 
     dataset = VBAIDataset(data_dir)
 
@@ -45,7 +45,7 @@ def get_dataset(data_dir, target_diagnosis='voc_fold_paralysis', random_state=12
     print('val ids:', len(val_identities))
     print('test ids:', len(test_identities))
 
-    target_diagnosis = 'voc_fold_paralysis' #airway_stenosis
+    #target_diagnosis = 'voc_fold_paralysis' #airway_stenosis
 
     qs = dataset.load_questionnaires('recordingschema')
     q_dfs = []
@@ -63,12 +63,12 @@ def get_dataset(data_dir, target_diagnosis='voc_fold_paralysis', random_state=12
     print('Found {} person/session pairs'.format(len(person_session_pairs)))
     print('--------------------------')
 
-    train_dataset = MyAudioDataset(train_identities, dataset, person_session_pairs)
-    val_dataset = MyAudioDataset(val_identities, dataset, person_session_pairs)
-    test_dataset = MyAudioDataset(test_identities, dataset, person_session_pairs)
-    DT_test_dataset = MyAudioDataset(DT_test_identities, dataset, person_session_pairs)
-
-    full_dataset = MyAudioDataset(all_identities, dataset, person_session_pairs)
+    train_dataset = MyAudioDataset(train_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo)
+    val_dataset = MyAudioDataset(val_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo)
+    test_dataset = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo)
+    test_dataset_DT = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT')
+    DT_test_dataset = MyAudioDataset(DT_test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT')
+    full_dataset = MyAudioDataset(all_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo)
 
     print("Train data size : " , len(train_dataset))
     print("Validation data size : ", len(val_dataset))
@@ -81,7 +81,7 @@ def get_dataset(data_dir, target_diagnosis='voc_fold_paralysis', random_state=12
     "VBAIDataset" : (dataset),
     "train_dataset": (train_dataset, train_identities),
     "val_dataset": (val_dataset, val_identities),
-    "test_dataset": (test_dataset, test_identities),
+    "test_dataset": (test_dataset, test_identities, test_dataset_DT),
     "DT_test_dataset": (DT_test_dataset, DT_test_identities),
     "full_dataset": (full_dataset, all_identities)
     }
@@ -91,7 +91,7 @@ def get_dataset(data_dir, target_diagnosis='voc_fold_paralysis', random_state=12
 
 
 class MyAudioDataset(torch.utils.data.Dataset):
-    def __init__(self, identities, dataset, person_session_pairs, diagnosis_column = 'voc_fold_paralysis', algo ='DL' , segment_size=3):
+    def __init__(self, identities, dataset, person_session_pairs, diagnosis_column = 'voc_fold_paralysis', algo ='DT' , segment_size=3):
         
         self.segment_size = segment_size
         self.diagnosis_column = diagnosis_column
@@ -205,7 +205,7 @@ class MyAudioDataset(torch.utils.data.Dataset):
 ### prepares data for visualization and non-dl algorithms
 
 def create_open_smile_df(audio_dataset, include_GAS = True, diagnosis_column = 'voc_fold_paralysis', algo = 'DT'):
-    # Extract opensmile features, age, gender, and site
+    
     opensmile_features = []
     ages = []
     genders = []
@@ -216,7 +216,7 @@ def create_open_smile_df(audio_dataset, include_GAS = True, diagnosis_column = '
     diagnosis = []
 
     for i in range(len(audio_dataset)):
-        opensmile_feature, _ , age, gender, site, binned_age, diagnosis_label = audio_dataset[i]
+        opensmile_feature,age,gender,site,binned_age,diagnosis_label = audio_dataset[i]
         opensmile_features.append(opensmile_feature.squeeze())
         ages.append(age)
         genders.append(gender)

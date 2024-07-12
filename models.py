@@ -43,7 +43,7 @@ def get_models(args, num_classes = 1):
 
     # models = [model_18, model_16, model_16_1, model_34, model_50, model_50_1, model_101]#, model_101_1, model_101_2]
 
-    model = FCModel(hs=64)
+    model = FCModel(hs=128)
     return model
 
 
@@ -56,8 +56,9 @@ class FCModel(torch.nn.Module):
         self.dropout = dropout
 
         self.lin1 = torch.nn.Linear(192, hs) # input size -> hidden size
-        self.lin2 = torch.nn.Linear(hs, 32)
-        self.lin3 = torch.nn.Linear(32, 1) # hidden size -> output size
+        self.lin2 = torch.nn.Linear(128, 64)
+        self.lin3 = torch.nn.Linear(64, 32)
+        self.lin4 = torch.nn.Linear(32, 1) # hidden size -> output size
 
         self.fcs = nn.Sequential(
             self.lin1,
@@ -68,7 +69,15 @@ class FCModel(torch.nn.Module):
             nn.ReLU(),
             nn.Dropout(p=self.dropout),
 
+            torch.nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Dropout(p=self.dropout),
+
             self.lin3,
+            nn.ReLU(),
+            nn.Dropout(p=self.dropout),
+
+            self.lin4,
 
             )
     

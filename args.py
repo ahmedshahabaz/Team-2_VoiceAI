@@ -8,6 +8,8 @@ def get_parser():
 
     parser.add_argument('--data_dir', type=str, default='./data/bids_with_sensitive_recordings/', help='Dataset directory')
 
+    parser.add_argument('--label', type=str, default='voc_fold_paralysis', help='Target Diagnosis (Diagnosis that model will be trained to predict)')
+
     parser.add_argument('--device', type=int, default=0)
 
     parser.add_argument('--mode', type=str, default='train')
@@ -29,7 +31,7 @@ def get_parser():
 
     parser.add_argument('--patience', type=int, default=15,help='maximum number of epochs to allow before early stopping')
 
-    parser.add_argument('--comment', required=False, type=str, default = 'test', help='name for TensorboardX')
+    parser.add_argument('--comment', required=False, type=str, default = 'test_5_layers', help='name for TensorboardX')
 
     args = parser.parse_args()
 
