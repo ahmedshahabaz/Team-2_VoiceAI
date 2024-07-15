@@ -218,7 +218,8 @@ def main(args):
             directory = f"./saved_models/{args.comment}"
             if not os.path.exists(directory):
                 os.makedirs(directory)
-            torch.save(model.state_dict(), os.path.join(directory, f"best_model_epoch_{epoch}.pth"))
+            #torch.save(model.state_dict(), os.path.join(directory, f"best_model_epoch_{epoch}.pth"))
+            torch.save(model, os.path.join(directory, f"best_model_epoch_{epoch}.pth"))
 
         # Logging to TensorBoard
         writer.add_scalars('Performance', {
@@ -261,10 +262,10 @@ def main(args):
 
     print(f"Test Accuracy : {test_acc:.4f} -- Test Loss: {test_ls:.4f}")
 
-    opensmile_df_test,feature_cols,label_cols = create_open_smile_df(test_dataset_DT,diagnosis_column=args.label)
-    _, _, _print_string_ = chi_DIR_plot(test_dataset_DT,opensmile_df_test,ground_truths,model_preds,attribute='gender',writer=writer)
-    print(_print_string_)
-    equalized_metrics(opensmile_df_test,ground_truths,model_preds,attribute='gender',writer=writer)
+    # opensmile_df_test,feature_cols,label_cols = create_open_smile_df(test_dataset_DT,diagnosis_column=args.label)
+    # _, _, _print_string_ = chi_DIR_plot(test_dataset_DT,opensmile_df_test,ground_truths,model_preds,attribute='gender',writer=None)
+    # print(_print_string_)
+    # equalized_metrics(opensmile_df_test,ground_truths,model_preds,attribute='gender',writer=None)
 
 
     # Save training and validation logs

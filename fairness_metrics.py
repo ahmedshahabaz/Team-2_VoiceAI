@@ -102,11 +102,11 @@ def chi_DIR_plot(audio_dataset, _opensmile_df_, ground_truth, _predictions_, att
     plt.title('Disparate Impact Ratios by Group')
     plt.legend()
     plt.show()
-
-    if writer is not None:
-        contingency_table_markdown = contingency_table.to_markdown()
-        writer.add_text('Chi_DIR_Plot/Contingency_Table', f"```\n{contingency_table_markdown}\n```")
-        writer.add_text('Chi_DIR_Plot/Results', _print_string_)
+    
+    # if writer is not None:
+    #     contingency_table_markdown = contingency_table.to_markdown()
+    #     writer.add_text('Chi_DIR_Plot/Contingency_Table', f"```\n{contingency_table_markdown}\n```")
+    #     writer.add_text('Chi_DIR_Plot/Results', _print_string_)
 
     return chi_square_result, disparate_impact_ratios, _print_string_
 
@@ -132,9 +132,9 @@ def equalized_metrics(_opensmile_df_, y_gt, y_pred, attribute='gender', writer =
     pb.summary()
     #pb.plot(xlim=(0, 0), ylim=(0, 0), lp_lines=False, roc_curves=False)
 
-    if writer is not None:
-        writer.add_text('Equalized/pred_stats', pred_stats)
-        writer.add_text('Equalized/Odds_metrics', pb.summary())
+    # if writer is not None:
+    #     writer.add_text('Equalized/pred_stats', pred_stats)
+    #     writer.add_text('Equalized/Odds_metrics', pb.summary())
 
     print("Equal Opportunity")
     pb.adjust(goal='opportunity', summary=False)

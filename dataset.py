@@ -189,6 +189,9 @@ class MyAudioDataset(torch.utils.data.Dataset):
         
     def map_site_back(self, site_numeric):
         return self.reverse_site_mapping.get(site_numeric, 'unknown')
+
+    def set_algorithm_type(self, algo='DT'):
+        self.algorithm = algo
         
     def __getitem__(self, idx):
         feature = torch.load(self.feature_files[idx])
@@ -210,7 +213,7 @@ class MyAudioDataset(torch.utils.data.Dataset):
 
 ### prepares data for visualization and non-dl algorithms
 
-def create_open_smile_df(audio_dataset, include_GAS = True, diagnosis_column = 'voc_fold_paralysis', algo = 'DT'):
+def create_open_smile_df(audio_dataset,include_GAS=True,diagnosis_column='voc_fold_paralysis',algo='DT'):
     
     opensmile_features = []
     ages = []
