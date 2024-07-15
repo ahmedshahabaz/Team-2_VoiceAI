@@ -17,7 +17,7 @@ from tqdm import tqdm
 from torchsummary import summary
 
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # -------------------------------------------
 
@@ -121,7 +121,7 @@ def main(args):
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
 
-    DEVICE = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
+    device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
 
     #model = resnet18(pretrained = True)
     #model.fc = nn.Linear(512*1*1,num_classes)
@@ -218,8 +218,8 @@ def main(args):
             directory = f"./saved_models/{args.comment}"
             if not os.path.exists(directory):
                 os.makedirs(directory)
-            #torch.save(model.state_dict(), os.path.join(directory, f"best_model_epoch_{epoch}.pth"))
-            torch.save(model, os.path.join(directory, f"best_model_epoch_{epoch}.pth"))
+            torch.save(model.state_dict(), os.path.join(directory, f"best_model_epoch_{epoch}.pth"))
+            #torch.save(model, os.path.join(directory, f"best_model_epoch_{epoch}.pth"))
 
         # Logging to TensorBoard
         writer.add_scalars('Performance', {

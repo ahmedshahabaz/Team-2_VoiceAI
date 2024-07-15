@@ -72,6 +72,8 @@ def chi_DIR_plot(audio_dataset, _opensmile_df_, ground_truth, _predictions_, att
 
     print(contingency_table)
 
+    chi_square_result = None
+
     if calc_chi_square:
         chi2_stat, p_value, dof, expected = chi2_contingency(contingency_table)
         chi_square_result = {

@@ -43,16 +43,16 @@ def get_models(args, num_classes = 1):
 
     # models = [model_18, model_16, model_16_1, model_34, model_50, model_50_1, model_101]#, model_101_1, model_101_2]
 
-    model = FCModel(hs=128)
+    model = FCModel_5(hs=128)
     return model
 
 
 #------------------------------------------------
 
-class FCModel(torch.nn.Module):
+class FCModel_5(torch.nn.Module):
     def __init__(self, hs=64, dropout=0.5):
         
-        super(FCModel, self).__init__()
+        super(FCModel_5, self).__init__()
         self.dropout = dropout
 
         self.lin1 = torch.nn.Linear(192, hs) # input size -> hidden size
