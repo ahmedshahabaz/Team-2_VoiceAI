@@ -109,7 +109,7 @@ def main(args):
     writer = SummaryWriter('./runs/%s'%args.comment)
     writer.add_text('Args', " \n".join(['%s %s' % (arg, getattr(args, arg)) for arg in vars(args)]))
 
-    dataset_dict = get_dataset(data_dir=args.data_dir,target_diagnosis=args.label,algo='DL')
+    dataset_dict = get_dataset(data_dir=args.data_dir,target_diagnosis=args.label,algo='DL',spec_gram=False)
     train_dataset, train_identities = dataset_dict['train_dataset']
     val_dataset, val_identities = dataset_dict['val_dataset']
     test_dataset, test_identities, test_dataset_DT = dataset_dict['test_dataset']

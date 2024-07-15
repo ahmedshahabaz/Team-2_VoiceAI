@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from torchsummary import summary
 from b2aiprep.dataset import VBAIDataset
 from b2aiprep.process import Audio, specgram
+import torchaudio.transforms as T
 
 warnings.filterwarnings("ignore", category=UserWarning, message="PySoundFile failed. Trying audioread instead.")
 warnings.filterwarnings("ignore", category=FutureWarning, message="librosa.core.audio.__audioread_load")
@@ -41,7 +42,7 @@ def get_person_session_pairs(vbai_dataset):
     return person_session_pairs
 
 
-def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',random_state=123):
+def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',spec_gram=False,random_state=123):
 
     dataset = VBAIDataset(data_dir)
 
@@ -69,12 +70,12 @@ def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',random_
     print('Found {} person/session pairs'.format(len(person_session_pairs)))
     print('--------------------------')
 
-    train_dataset = MyAudioDataset(train_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo)
-    val_dataset = MyAudioDataset(val_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo)
-    test_dataset = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo)
-    test_dataset_DT = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT')
-    DT_test_dataset = MyAudioDataset(DT_test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT')
-    full_dataset = MyAudioDataset(all_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo)
+    train_dataset = MyAudioDataset(train_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
+    val_dataset = MyAudioDataset(val_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
+    test_dataset = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
+    test_dataset_DT = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT',spec_gram=spec_gram)
+    DT_test_dataset = MyAudioDataset(DT_test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT',spec_gram=spec_gram)
+    full_dataset = MyAudioDataset(all_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
 
     print("Train data size : " , len(train_dataset))
     print("Validation data size : ", len(val_dataset))
@@ -97,9 +98,8 @@ def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',random_
 
 
 class MyAudioDataset(torch.utils.data.Dataset):
-    def __init__(self, identities, dataset, person_session_pairs, diagnosis_column = 'voc_fold_paralysis', algo ='DT' , segment_size=3):
-        
-        self.segment_size = segment_size
+    def __init__(self, identities, dataset, person_session_pairs, diagnosis_column = 'voc_fold_paralysis', algo ='DT',spec_gram=False, segment_size=3):
+
         self.diagnosis_column = diagnosis_column
         self.algorithm = algo
         
@@ -160,7 +160,7 @@ class MyAudioDataset(torch.utils.data.Dataset):
         for person_id, dgnsis in diagnosis_data:
             diagnosis_dict[str(person_id)] = float(dgnsis)
         
-        self.feature_files = []
+        self.files = []
         self.age = []
         self.binned_age = []
         self.gender = []
@@ -171,18 +171,56 @@ class MyAudioDataset(torch.utils.data.Dataset):
             if person_id not in identities:
                 continue
             
-            audio_features = [str(path) for path in dataset.find_audio_features(person_id, session_id) if "Audio-Check" not in str(path)]
-            self.feature_files += audio_features
-            self.age += [age_dict[person_id]]*len(audio_features)
-            self.binned_age += [binned_age_dict[person_id]]*len(audio_features)
-            self.gender += [gender_dict[person_id]]*len(audio_features)
-            self.site += [site_dict[person_id]]*len(audio_features)
-            self.diagnosis += [diagnosis_dict[person_id]]*len(audio_features)
+            if spec_gram:
+                audio_files = [str(path) for path in dataset.find_audio(person_id, session_id) if "Audio-Check" not in str(path)]
+                self.files += audio_files
+                self.segment_size = segment_size
+                self.sample_rate = 16000
+                self.segment_duration = self.segment_size * self.sample_rate
+                self.overlap = 0.1
+                self.step_size = int(self.segment_duration * (1 - self.overlap))
+                #self.win_length = 30
+                #self.hop_length = 10
+                #self.nfft = 512
+                self.mel_spectrograms = []
+                self.files += audio_files
+                self._generate_mel_spectrograms()
+
+            else:
+                audio_features = [str(path) for path in dataset.find_audio_features(person_id, session_id) if "Audio-Check" not in str(path)]
+                self.files += audio_features
+                self.age += [age_dict[person_id]]*len(audio_features)
+                self.binned_age += [binned_age_dict[person_id]]*len(audio_features)
+                self.gender += [gender_dict[person_id]]*len(audio_features)
+                self.site += [site_dict[person_id]]*len(audio_features)
+                self.diagnosis += [diagnosis_dict[person_id]]*len(audio_features)
+
+
         
-        assert len(self.feature_files) == len(self.age) == len(self.gender) == len(self.site) == len(self.diagnosis)
+        assert len(self.files) == len(self.age) == len(self.gender) == len(self.site) == len(self.diagnosis)
+
+    def _generate_mel_spectrograms(self, audio_files):
+
+        for idx in range(len(audio_files)):
+            audio = Audio.from_file(audio_files[idx])
+            audio = audio.to_16khz()
+            if audio.signal.size(0) < self.segment_size*16000:
+                audio.signal = torch.nn.functional.pad(audio.signal, (0,self.segment_size*16000-audio.signal.size(0)), mode='constant', value=0)
+
+            for start in range(0, len(audio.signal) - self.segment_duration + 1, self.step_size):
+                segment = audio.signal[start:start + self.segment_duration]
+                features_specgram = specgram(audio._replace(signal=segment), toDb=True)
+                features_mel_specgram = melfilterbank(features_specgram)
+                self.mel_spectrograms.append(features_mel_specgram)
+                #self.metadata.append((self.age[idx], self.airway_stenosis[idx]))
+                self.age += [age_dict[person_id]]*1
+                self.binned_age += [binned_age_dict[person_id]]*1
+                self.gender += [gender_dict[person_id]]*1
+                self.site += [site_dict[person_id]]*1
+                self.diagnosis += [diagnosis_dict[person_id]]*1
         
     def __len__(self):
-        return len(self.feature_files)
+        return len(self.files)
     
     def map_gender_back(self, gender_numeric):
         return self.reverse_gender_mapping.get(gender_numeric, 'unknown')
@@ -194,7 +232,7 @@ class MyAudioDataset(torch.utils.data.Dataset):
         self.algorithm = algo
         
     def __getitem__(self, idx):
-        feature = torch.load(self.feature_files[idx])
+        feature = torch.load(self.files[idx])
         opensmile_feature = feature['opensmile']
         yamnet_embedding = feature['speaker_embedding']
         age = self.age[idx]
@@ -204,6 +242,12 @@ class MyAudioDataset(torch.utils.data.Dataset):
         diagnosis = self.diagnosis[idx]
         
         if self.algorithm.upper() == 'DL':
+            try:
+                mel_spec = self.mel_spectrograms[idx]
+                return mel_spec, yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
+            except (AttributeError, IndexError):
+                mel_spec = None
+
             return yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
 
         else:
