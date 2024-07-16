@@ -12,8 +12,10 @@ import torch.nn.functional as F
 
 def get_models(args, num_classes = 1):
 
-    # model_18 = resnet18(pretrained = False)
-    # model_18.fc = nn.Linear(512*1*1, num_classes)
+    model_18 = resnet18("IMAGENET1K_V1")
+    #model_18.conv1 = nn.Conv2d(128, 64, kernel_size=7, stride=2, padding=3, bias=False)
+    model_18.fc = nn.Linear(512*1*1, num_classes)
+    return model_18
 
     # model_16 = vgg16(pretrained = False)
     # model_16.classifier[6] = nn.Linear(in_features=4096, out_features=num_classes)
@@ -43,8 +45,8 @@ def get_models(args, num_classes = 1):
 
     # models = [model_18, model_16, model_16_1, model_34, model_50, model_50_1, model_101]#, model_101_1, model_101_2]
 
-    model = FCModel_5(hs=128)
-    return model
+    #model = FCModel_5(hs=128)
+    #return model
 
 
 #------------------------------------------------

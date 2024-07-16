@@ -18,7 +18,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from torchsummary import summary
 from b2aiprep.dataset import VBAIDataset
-from b2aiprep.process import Audio, specgram
+from b2aiprep.process import Audio,specgram,melfilterbank
 import torchaudio.transforms as T
 
 warnings.filterwarnings("ignore", category=UserWarning, message="PySoundFile failed. Trying audioread instead.")
@@ -73,16 +73,17 @@ def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',spec_gr
     train_dataset = MyAudioDataset(train_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
     val_dataset = MyAudioDataset(val_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
     test_dataset = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
-    test_dataset_DT = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT',spec_gram=spec_gram)
-    DT_test_dataset = MyAudioDataset(DT_test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT',spec_gram=spec_gram)
-    full_dataset = MyAudioDataset(all_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
+    test_dataset_DT = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT',spec_gram=False)
+    DT_test_dataset = MyAudioDataset(DT_test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT',spec_gram=False)
+    #full_dataset = MyAudioDataset(all_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
+    full_dataset = ''
 
     print("Train data size : " , len(train_dataset))
     print("Validation data size : ", len(val_dataset))
     print("Test data size : ", len(test_dataset))
     print("-----------------------")
     print("Test set for Decision Tree Algo : ", len(DT_test_dataset))
-    print("Lenght of full dataset : " , len(full_dataset))
+    #print("Lenght of full dataset : " , len(full_dataset))
 
     dataset_dict = {
     "VBAIDataset" : (dataset),
@@ -102,6 +103,7 @@ class MyAudioDataset(torch.utils.data.Dataset):
 
         self.diagnosis_column = diagnosis_column
         self.algorithm = algo
+        self.spec_gram = spec_gram
         
         # Define gender mapping
         self.gender_mapping = {
@@ -160,20 +162,24 @@ class MyAudioDataset(torch.utils.data.Dataset):
         for person_id, dgnsis in diagnosis_data:
             diagnosis_dict[str(person_id)] = float(dgnsis)
         
-        self.files = []
+        self.audio_files = []
+        self.feature_files = []
         self.age = []
         self.binned_age = []
         self.gender = []
         self.site = []
         self.diagnosis = []
+        self.mel_spectrograms = []
         
         for person_id, session_id in person_session_pairs:
             if person_id not in identities:
                 continue
-            
-            if spec_gram:
-                audio_files = [str(path) for path in dataset.find_audio(person_id, session_id) if "Audio-Check" not in str(path)]
-                self.files += audio_files
+
+            aud_feature_files = sorted([str(path) for path in dataset.find_audio_features(person_id, session_id) if "Audio-Check" not in str(path)])
+
+            if self.spec_gram:
+                aud_files = sorted([str(path) for path in dataset.find_audio(person_id, session_id) if "Audio-Check" not in str(path)])
+                #self.audio_files += aud_files
                 self.segment_size = segment_size
                 self.sample_rate = 16000
                 self.segment_duration = self.segment_size * self.sample_rate
@@ -182,45 +188,62 @@ class MyAudioDataset(torch.utils.data.Dataset):
                 #self.win_length = 30
                 #self.hop_length = 10
                 #self.nfft = 512
-                self.mel_spectrograms = []
-                self.files += audio_files
-                self._generate_mel_spectrograms()
+                self._generate_mel_spectrograms(person_id,aud_files,aud_feature_files,age_dict,binned_age_dict,gender_dict,site_dict,diagnosis_dict)
 
             else:
-                audio_features = [str(path) for path in dataset.find_audio_features(person_id, session_id) if "Audio-Check" not in str(path)]
-                self.files += audio_features
-                self.age += [age_dict[person_id]]*len(audio_features)
-                self.binned_age += [binned_age_dict[person_id]]*len(audio_features)
-                self.gender += [gender_dict[person_id]]*len(audio_features)
-                self.site += [site_dict[person_id]]*len(audio_features)
-                self.diagnosis += [diagnosis_dict[person_id]]*len(audio_features)
+                self.feature_files += aud_feature_files
+                self.age += [age_dict[person_id]]*len(aud_feature_files)
+                self.binned_age += [binned_age_dict[person_id]]*len(aud_feature_files)
+                self.gender += [gender_dict[person_id]]*len(aud_feature_files)
+                self.site += [site_dict[person_id]]*len(aud_feature_files)
+                self.diagnosis += [diagnosis_dict[person_id]]*len(aud_feature_files)
+
+        if self.spec_gram:
+            assert len(self.mel_spectrograms) == len(self.feature_files) == len(self.age) == len(self.gender) == len(self.site) == len(self.diagnosis)
+        else:
+            len(self.feature_files) == len(self.age) == len(self.gender) == len(self.site) == len(self.diagnosis)
+
+    def _generate_mel_spectrograms(self, person_id, aud_files, aud_feature_files, age_dict, binned_age_dict, gender_dict, site_dict, diagnosis_dict):
+
+        mel_transform = T.MelSpectrogram(
+            sample_rate=16000,
+            n_fft=int(20*16000/1000),  # Typically used value
+            win_length=20,  # Typically used value, equal to n_fft to avoid extra padding
+            hop_length=10,  # 10 ms hop length for a 16 kHz sample rate
+            n_mels=20,  # Number of mel bins
+        )
+        # mel_transform = T.MelSpectrogram(
+        #     sample_rate=16000,
+        #     #n_fft=512,  # Number of FFT components
+        #     #win_length=512,  # Size of FFT window
+        #     #hop_length=160,  # Number of samples between frames
+        #     n_mels=20,  # Number of Mel bins
+        #     )
 
 
-        
-        assert len(self.files) == len(self.age) == len(self.gender) == len(self.site) == len(self.diagnosis)
-
-    def _generate_mel_spectrograms(self, audio_files):
-
-        for idx in range(len(audio_files)):
-            audio = Audio.from_file(audio_files[idx])
+        for aud_file, ftr_file in zip(aud_files, aud_feature_files):
+            audio = Audio.from_file(aud_file)
             audio = audio.to_16khz()
-            if audio.signal.size(0) < self.segment_size*16000:
-                audio.signal = torch.nn.functional.pad(audio.signal, (0,self.segment_size*16000-audio.signal.size(0)), mode='constant', value=0)
 
+            if audio.signal.size(0) < self.segment_duration:
+                # Pad only if the segment size is larger than the audio signal
+                audio.signal = torch.nn.functional.pad(audio.signal, (0, self.segment_duration - audio.signal.size(0)), mode='constant', value=0)
+
+            # Generate mel-spectrograms for overlapping segments
             for start in range(0, len(audio.signal) - self.segment_duration + 1, self.step_size):
                 segment = audio.signal[start:start + self.segment_duration]
-                features_specgram = specgram(audio._replace(signal=segment), toDb=True)
-                features_mel_specgram = melfilterbank(features_specgram)
-                self.mel_spectrograms.append(features_mel_specgram)
-                #self.metadata.append((self.age[idx], self.airway_stenosis[idx]))
-                self.age += [age_dict[person_id]]*1
-                self.binned_age += [binned_age_dict[person_id]]*1
-                self.gender += [gender_dict[person_id]]*1
-                self.site += [site_dict[person_id]]*1
-                self.diagnosis += [diagnosis_dict[person_id]]*1
+                mel_specgram_segment = mel_transform(segment.squeeze(1).unsqueeze(0))
+                self.mel_spectrograms.append(mel_specgram_segment.squeeze(0))
+                self.audio_files += [aud_file] #[aud_file]*1
+                self.feature_files += [ftr_file]
+                self.age += [age_dict[person_id]] #[age_dict[person_id]]*1
+                self.binned_age += [binned_age_dict[person_id]] #[binned_age_dict[person_id]]*1
+                self.gender += [gender_dict[person_id]] #[gender_dict[person_id]]*1
+                self.site += [site_dict[person_id]] #[site_dict[person_id]]*1
+                self.diagnosis += [diagnosis_dict[person_id]] #[diagnosis_dict[person_id]]*1
         
     def __len__(self):
-        return len(self.files)
+        return len(self.feature_files)
     
     def map_gender_back(self, gender_numeric):
         return self.reverse_gender_mapping.get(gender_numeric, 'unknown')
@@ -232,7 +255,8 @@ class MyAudioDataset(torch.utils.data.Dataset):
         self.algorithm = algo
         
     def __getitem__(self, idx):
-        feature = torch.load(self.files[idx])
+
+        feature = torch.load(self.feature_files[idx])
         opensmile_feature = feature['opensmile']
         yamnet_embedding = feature['speaker_embedding']
         age = self.age[idx]
@@ -244,11 +268,19 @@ class MyAudioDataset(torch.utils.data.Dataset):
         if self.algorithm.upper() == 'DL':
             try:
                 mel_spec = self.mel_spectrograms[idx]
+                #return mel_spec, yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
                 return mel_spec, yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
+
             except (AttributeError, IndexError):
                 mel_spec = None
 
             return yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
+
+            # if self.spec_gram:
+            #     mel_spec = self.mel_spectrograms[idx]
+            #     return mel_spec, float(age), gender, site, float(binned_age) , float(diagnosis)
+
+            # return yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
 
         else:
             return opensmile_feature, age, gender, site, binned_age , diagnosis
