@@ -132,7 +132,7 @@ def main(args):
     #model = resnet101(pretrained = True)
     #model.fc = nn.Linear(2048,num_classes)
 
-    model = get_models(args)
+    model = get_models(args,spec_gram=False)
 
     '''
     Line 110-114 is needed only if you want to train only the last layer.
