@@ -166,11 +166,11 @@ def main(args):
     
     #optimizer = torch.optim.Adam(params, betas=(0.9, 0.98), eps=1e-9, lr=args.learning_rate, weight_decay = 0.000001)
 
-    optimizer = torch.optim.SGD(params, lr=args.learning_rate, momentum=0.9, weight_decay=0.000001)
-
+    #optimizer = torch.optim.SGD(params, lr=args.learning_rate, momentum=0.9, weight_decay=0.000001)
+    optimizer = torch.optim.Adam(params, lr=0.0001)
 
     learning_rate_scheduler = None
-    #learning_rate_scheduler = StepLR(optimizer, step_size = 15, gamma = 0.1)
+    #learning_rate_scheduler = StepLR(optimizer, step_size = 7, gamma = 0.1)
     
     #cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
     binary_crs_entropy_ls = torch.nn.BCELoss(reduction='none')
@@ -192,6 +192,10 @@ def main(args):
     '''
     Training script
     '''
+
+    print()
+    model_summary_str = summary(model, (3, 257, 301))
+    print()
 
     for epoch in (range(args.num_epochs)):
 

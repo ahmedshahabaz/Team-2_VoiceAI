@@ -1,6 +1,6 @@
 from args import get_parser
 import torch
-from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152, vgg16, vgg19, inception_v3
+#from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152, vgg16, vgg19, inception_v3
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as autograd

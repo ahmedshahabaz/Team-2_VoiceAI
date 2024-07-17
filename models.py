@@ -10,12 +10,19 @@ import torch.nn.functional as F
 #------------------------------------------------
 
 
-def get_models(args, num_classes = 1):
+def get_models(args,num_classes = 1,spec_gram=True,pretrained=True):
 
-    model_18 = resnet18("IMAGENET1K_V1")
-    #model_18.conv1 = nn.Conv2d(128, 64, kernel_size=7, stride=2, padding=3, bias=False)
-    model_18.fc = nn.Linear(512*1*1, num_classes)
-    return model_18
+    if spec_gram:
+
+        if pretrained:
+            model = resnet18("IMAGENET1K_V1")
+        #model_18.conv1 = nn.Conv2d(128, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        model.fc = nn.Linear(512*1*1, num_classes)
+        
+    else:
+        model = FCModel_4(hs=128)
+
+    return model
 
     # model_16 = vgg16(pretrained = False)
     # model_16.classifier[6] = nn.Linear(in_features=4096, out_features=num_classes)
@@ -45,8 +52,7 @@ def get_models(args, num_classes = 1):
 
     # models = [model_18, model_16, model_16_1, model_34, model_50, model_50_1, model_101]#, model_101_1, model_101_2]
 
-    #model = FCModel_5(hs=128)
-    #return model
+
 
 
 #------------------------------------------------
@@ -72,6 +78,41 @@ class FCModel_5(torch.nn.Module):
             nn.Dropout(p=self.dropout),
 
             torch.nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Dropout(p=self.dropout),
+
+            self.lin3,
+            nn.ReLU(),
+            nn.Dropout(p=self.dropout),
+
+            self.lin4,
+
+            )
+    
+    def forward(self, x):
+
+        x = self.fcs(x)
+
+        return x
+
+
+class FCModel_4(torch.nn.Module):
+    def __init__(self, hs=128, dropout=0.5):
+        
+        super(FCModel_4, self).__init__()
+        self.dropout = dropout
+
+        self.lin1 = torch.nn.Linear(192, hs) # input size -> hidden size
+        self.lin2 = torch.nn.Linear(128, 64)
+        self.lin3 = torch.nn.Linear(64, 32)
+        self.lin4 = torch.nn.Linear(32, 1) # hidden size -> output size
+
+        self.fcs = nn.Sequential(
+            self.lin1,
+            nn.ReLU(),
+            nn.Dropout(p=self.dropout),
+
+            self.lin2,
             nn.ReLU(),
             nn.Dropout(p=self.dropout),
 
