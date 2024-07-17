@@ -2,6 +2,9 @@
 
 This project was developed in the b2ai summer school of 2024.
 
+The project builds upon the following GitHub repository, which is the official GitHub of b2ai:
+[https://github.com/sensein/b2aiprep/tree/main](https://github.com/sensein/b2aiprep/tree/main)
+
 ## References
 
 The Equalized Odds and Equalized Opportunity metrics in the `fairness_metric.py` file utilize code provided by:
