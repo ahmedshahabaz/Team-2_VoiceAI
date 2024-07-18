@@ -1,6 +1,6 @@
 from args import get_parser
 import torch
-from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152, vgg16, vgg19, inception_v3
+#from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152, vgg16, vgg19, inception_v3
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd as autograd
@@ -56,8 +56,8 @@ def train_epoch(model, epoch, mode, data_loader, device, loss_func, optimizer, s
             #mel_specgram_batch, yamnet_embedding_batch, opensmile_batch, age_batch, gender_batch, site_batch, binned_age_batch , diagnosis_batch = data_batch
             mel_specgram_batch, yamnet_embedding_batch, age_batch, gender_batch, site_batch, binned_age_batch , diagnosis_batch = data_batch
             label_batch = diagnosis_batch
-            bs, h, w = mel_specgram_batch.shape
-            mel_specgram_batch = mel_specgram_batch.unsqueeze(1).expand(bs,3,h,w)
+            #bs, h, w = mel_specgram_batch.shape
+            #mel_specgram_batch = mel_specgram_batch.unsqueeze(1).expand(bs,3,h,w)
             mel_specgram_batch = mel_specgram_batch.to(device)
             #yamnet_embedding_batch = yamnet_embedding_batch.to(device)
             label_batch = label_batch.to(device, dtype = torch.float32)
@@ -124,21 +124,13 @@ def main(args):
     #DT_test_dataset, DT_test_identities = dataset_dict['DT_test_dataset']
     #full_dataset, all_identities = dataset_dict['full_dataset']
 
+    #train_dataset = torch.utils.data.Subset(train_dataset, range(500))
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
     
 
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
-
-    #model = resnet18(pretrained = True)
-    #model.fc = nn.Linear(512*1*1,num_classes)
-
-    #model = resnet50(pretrained = True)
-    #model.fc = nn.Linear(2048,num_classes)
-
-    #model = resnet101(pretrained = True)
-    #model.fc = nn.Linear(2048,num_classes)
 
     model = get_models(args)
 
@@ -166,8 +158,8 @@ def main(args):
     
     #optimizer = torch.optim.Adam(params, betas=(0.9, 0.98), eps=1e-9, lr=args.learning_rate, weight_decay = 0.000001)
 
-    #optimizer = torch.optim.SGD(params, lr=args.learning_rate, momentum=0.9, weight_decay=0.000001)
-    optimizer = torch.optim.Adam(params, lr=0.0001)
+    optimizer = torch.optim.SGD(params, lr=args.learning_rate, momentum=0.9, weight_decay=0.000001)
+    #optimizer = torch.optim.Adam(params, lr=0.0001)
 
     learning_rate_scheduler = None
     #learning_rate_scheduler = StepLR(optimizer, step_size = 7, gamma = 0.1)
@@ -194,8 +186,8 @@ def main(args):
     '''
 
     print()
-    model_summary_str = summary(model, (3, 257, 301))
-    print()
+    #model_summary_str = summary(model, (3, 257, 301))
+    #print()
 
     for epoch in (range(args.num_epochs)):
 

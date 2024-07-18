@@ -1,5 +1,5 @@
 
-import os
+import os, random
 import warnings
 import librosa
 #import parselmouth
@@ -20,6 +20,7 @@ from torchsummary import summary
 from b2aiprep.dataset import VBAIDataset
 from b2aiprep.process import Audio,specgram,melfilterbank
 import torchaudio.transforms as T
+#from audiomentations import Compose, AddGaussianNoise, TimeStretch, PitchShift, Shift, TimeMask
 
 warnings.filterwarnings("ignore", category=UserWarning, message="PySoundFile failed. Trying audioread instead.")
 warnings.filterwarnings("ignore", category=FutureWarning, message="librosa.core.audio.__audioread_load")
@@ -70,7 +71,7 @@ def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',spec_gr
     print('Found {} person/session pairs'.format(len(person_session_pairs)))
     print('--------------------------')
 
-    train_dataset = MyAudioDataset(train_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
+    train_dataset = MyAudioDataset(train_identities, dataset,person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram,split='Train')
     val_dataset = MyAudioDataset(val_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
     test_dataset = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo=algo,spec_gram=spec_gram)
     test_dataset_DT = MyAudioDataset(test_identities, dataset, person_session_pairs,diagnosis_column=target_diagnosis,algo='DT',spec_gram=False)
@@ -99,11 +100,12 @@ def get_dataset(data_dir,target_diagnosis='voc_fold_paralysis',algo='DT',spec_gr
 
 
 class MyAudioDataset(torch.utils.data.Dataset):
-    def __init__(self, identities, dataset, person_session_pairs, diagnosis_column = 'voc_fold_paralysis', algo ='DT',spec_gram=False, segment_size=3):
+    def __init__(self, identities, dataset, person_session_pairs, split='Test', diagnosis_column = 'voc_fold_paralysis', algo ='DT',spec_gram=False, segment_size=3):
 
         self.diagnosis_column = diagnosis_column
         self.algorithm = algo
         self.spec_gram = spec_gram
+        self.split = split
         
         # Define gender mapping
         self.gender_mapping = {
@@ -169,7 +171,7 @@ class MyAudioDataset(torch.utils.data.Dataset):
         self.gender = []
         self.site = []
         self.diagnosis = []
-        self.mel_spectrograms = []
+        self.aud_segments = []
         
         for person_id, session_id in person_session_pairs:
             if person_id not in identities:
@@ -178,6 +180,27 @@ class MyAudioDataset(torch.utils.data.Dataset):
             aud_feature_files = sorted([str(path) for path in dataset.find_audio_features(person_id, session_id) if "Audio-Check" not in str(path)])
 
             if self.spec_gram:
+                # self.aud_augment = Compose([
+                #     AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.015, p=0.5),
+                #     TimeStretch(min_rate=0.8, max_rate=1.25, p=0.5),
+                #     PitchShift(min_semitones=-4, max_semitones=4, p=0.5),
+                #     Shift(p=0.5),
+                #     #SpecFrequencyMask(p=0.5),
+                #     TimeMask(min_band_part=0.1, max_band_part=0.4, p=0.5),
+                #     ])
+                self.n_fft = 1024
+                self.sample_rate = 16000
+                self.spec_transform = T.Spectrogram(n_fft=self.n_fft, power=2)
+                self.mel_scale_transform = T.MelScale(n_mels=20, sample_rate=self.sample_rate, n_stft=self.n_fft // 2 + 1)
+
+                self.spec_aug = None
+                if self.split.upper()=='TRAIN':
+                    self.spec_aug = torch.nn.Sequential(
+                        T.TimeStretch(0.8,fixed_rate=True),
+                        T.FrequencyMasking(freq_mask_param=80),
+                        T.TimeMasking(time_mask_param=80),
+                    )
+                
                 aud_files = sorted([str(path) for path in dataset.find_audio(person_id, session_id) if "Audio-Check" not in str(path)])
                 #self.audio_files += aud_files
                 self.segment_size = segment_size
@@ -188,7 +211,7 @@ class MyAudioDataset(torch.utils.data.Dataset):
                 #self.win_length = 30
                 #self.hop_length = 10
                 #self.nfft = 512
-                self._generate_mel_spectrograms(person_id,aud_files,aud_feature_files,age_dict,binned_age_dict,gender_dict,site_dict,diagnosis_dict)
+                self._generate_aud_segments(person_id,aud_files,aud_feature_files,age_dict,binned_age_dict,gender_dict,site_dict,diagnosis_dict)
 
             else:
                 self.feature_files += aud_feature_files
@@ -199,19 +222,20 @@ class MyAudioDataset(torch.utils.data.Dataset):
                 self.diagnosis += [diagnosis_dict[person_id]]*len(aud_feature_files)
 
         if self.spec_gram:
-            assert len(self.mel_spectrograms) == len(self.feature_files) == len(self.age) == len(self.gender) == len(self.site) == len(self.diagnosis)
+            assert len(self.aud_segments) == len(self.feature_files) == len(self.age) == len(self.gender) == len(self.site) == len(self.diagnosis)
         else:
             len(self.feature_files) == len(self.age) == len(self.gender) == len(self.site) == len(self.diagnosis)
 
-    def _generate_mel_spectrograms(self, person_id, aud_files, aud_feature_files, age_dict, binned_age_dict, gender_dict, site_dict, diagnosis_dict):
+    def _generate_aud_segments(self, person_id, aud_files, aud_feature_files, age_dict, binned_age_dict, gender_dict, site_dict, diagnosis_dict):
 
-        mel_transform = T.MelSpectrogram(
-            sample_rate=16000,
-            n_fft=int(20*16000/1000),  # Typically used value
-            win_length=20,  # Typically used value, equal to n_fft to avoid extra padding
-            hop_length=10,  # 10 ms hop length for a 16 kHz sample rate
-            n_mels=20,  # Number of mel bins
-        )
+        
+        # mel_transform = T.MelSpectrogram(
+        #     sample_rate=16000,
+        #     n_fft=int(20*16000/1000),  # Typically used value
+        #     win_length=20,  # Typically used value, equal to n_fft to avoid extra padding
+        #     hop_length=10,  # 10 ms hop length for a 16 kHz sample rate
+        #     n_mels=20,  # Number of mel bins
+        # )
         # mel_transform = T.MelSpectrogram(
         #     sample_rate=16000,
         #     #n_fft=512,  # Number of FFT components
@@ -231,9 +255,18 @@ class MyAudioDataset(torch.utils.data.Dataset):
 
             # Generate mel-spectrograms for overlapping segments
             for start in range(0, len(audio.signal) - self.segment_duration + 1, self.step_size):
-                segment = audio.signal[start:start + self.segment_duration]
-                mel_specgram_segment = mel_transform(segment.squeeze(1).unsqueeze(0))
-                self.mel_spectrograms.append(mel_specgram_segment.squeeze(0))
+                segment = audio.signal[start:start + self.segment_duration] # 480000, channel
+                #segment = segment.permute(1, 0) # channel, 480000
+                # # apply augmentations to raw audio segment
+                # # if self.split.upper()=='TRAIN':
+                # #     segment = self.aud_augment(segment.numpy(),16000)
+                # #     segment = torch.tensor(segment) # shape: (channel,16000*duration) =>  (1,48000)
+                # mel_specgram_segment = mel_transform(segment) # torch.Size([1, 20, 4801] => channel,n_mels,sample_rate
+                # mel_specgram_segment = mel_specgram_segment.squeeze(0) # torch.Size([20, 4801] => n_mels,sample_rate
+                # # if random.random() < 0.5:
+                # #     segment = T.FrequencyMasking(freq_mask_param=80)(mel_specgram_segment)
+
+                self.aud_segments.append(segment.squeeze(1)) # 480000 => Removing channel dimension
                 self.audio_files += [aud_file] #[aud_file]*1
                 self.feature_files += [ftr_file]
                 self.age += [age_dict[person_id]] #[age_dict[person_id]]*1
@@ -267,9 +300,17 @@ class MyAudioDataset(torch.utils.data.Dataset):
         
         if self.algorithm.upper() == 'DL':
             try:
-                mel_spec = self.mel_spectrograms[idx]
+                aud_seg = self.aud_segments[idx]
+                #mel_spec_aug = self.aud_augment(samples=mel_spec.numpy(), sample_rate=16000)
+                #mel_spec_aug = torch.tensor(mel_spec_aug)
                 #return mel_spec, yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
-                return mel_spec, yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
+                # spec = self.spec_transform(aud_seg)
+                # if self.spec_aug and random.random() < 0.5:
+                #     spec = self.spec_aug(spec)
+                # mel_spec = self.mel_scale_transform(spec)
+
+                # return mel_spec, yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
+                return aud_seg, yamnet_embedding, float(age), gender, site, float(binned_age) , float(diagnosis)
 
             except (AttributeError, IndexError):
                 mel_spec = None

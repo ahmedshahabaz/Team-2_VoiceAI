@@ -23,7 +23,7 @@ def get_parser():
 
     parser.add_argument('--batch_size', type=int, default=128)
 
-    parser.add_argument('--learning_rate', type=float, default=0.001, help='base learning rate')
+    parser.add_argument('--learning_rate', type=float, default=0.0001, help='base learning rate')
 
     parser.add_argument('--num_epochs', type=int, default=150, help='maximum number of epochs')
 
@@ -31,7 +31,7 @@ def get_parser():
 
     parser.add_argument('--patience', type=int, default=15,help='maximum number of epochs to allow before early stopping')
 
-    parser.add_argument('--comment', required=False, type=str, default = 'test_5', help='name for TensorboardX')
+    parser.add_argument('--comment', required=False, type=str, default = 'test_resnet18_model_aug', help='name for TensorboardX')
 
     args = parser.parse_args()
 
