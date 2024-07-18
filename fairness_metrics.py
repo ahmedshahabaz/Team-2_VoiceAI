@@ -1,18 +1,4 @@
 
-# https://towardsdatascience.com/mitigating-bias-in-ai-with-aif360-b4305d1f88a9
-# https://aif360.readthedocs.io/en/stable/modules/generated/aif360.sklearn.metrics.disparate_impact_ratio.html
-
-from scipy.stats import chi2_contingency
-import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-#from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from fairness import tools, balancers
-
-
 def chi_DIR_plot(audio_dataset, _opensmile_df_, ground_truth, _predictions_, attribute='gender', calc_chi_square=True, writer=None):
     
     print("---" , attribute.upper(), "---")
@@ -39,11 +25,17 @@ def chi_DIR_plot(audio_dataset, _opensmile_df_, ground_truth, _predictions_, att
         map_func = age_map
     
     tpr_fpr_data = {}
+    contingency_data = {}
     
     for group in unique_groups:
         group_indices = sensitive_attribute == group
         group_predictions = _predictions_[group_indices]
         group_truth = ground_truth[group_indices]
+        
+        # Calculate correct and incorrect predictions
+        correct_predictions = np.sum(group_predictions == group_truth)
+        incorrect_predictions = np.sum(group_predictions != group_truth)
+        total_predictions = len(group_truth)
 
         tp = np.sum((group_predictions == 1) & (group_truth == 1))
         fp = np.sum((group_predictions == 1) & (group_truth == 0))
@@ -53,24 +45,40 @@ def chi_DIR_plot(audio_dataset, _opensmile_df_, ground_truth, _predictions_, att
         tpr = tp / (tp + fn)  # True Positive Rate
         fpr = fp / (fp + tn)  # False Positive Rate
 
+        precision = tp / (tp + fp)
+        recall = tpr
+
         tpr_fpr_data[group] = {
             'TP': tp,
             'FP': fp,
             'FN': fn,
             'TN': tn,
             'TPR': tpr,
-            'FPR': fpr
+            'FPR': fpr,
+            'Prec': precision,
+            'Rcl': recall,
+            'Correct': correct_predictions/total_predictions,
+            'Incorrect': incorrect_predictions/total_predictions
         }
+
+        contingency_data[group] = {
+            'TPR': tpr,
+            'FPR': fpr,
+            'Correct': correct_predictions/total_predictions,
+            'Incorrect': incorrect_predictions/total_predictions
+        }
+        
+        
         
         favorable_outcome[group] = np.mean(group_predictions == group_truth)
     
     most_favorable_group = max(favorable_outcome, key=favorable_outcome.get)
     disparate_impact_ratios = {group: favorable_outcome[group] / favorable_outcome[most_favorable_group] for group in unique_groups}
 
-    contingency_table = pd.DataFrame(tpr_fpr_data).T
+    contingency_table = pd.DataFrame(contingency_data).T
     contingency_table.index = [map_func(group) for group in contingency_table.index]
 
-    print(contingency_table)
+    print(pd.DataFrame(tpr_fpr_data).T)
 
     chi_square_result = None
 
